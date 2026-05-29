@@ -2,7 +2,8 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main, master ] # Triggers whenever you push code
+    branches: [ main, master ] # Triggers automatically on code push
+  workflow_dispatch:          # Forces a manual "Run workflow" button in the GitHub UI
 
 jobs:
   build:
