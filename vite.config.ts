@@ -12,4 +12,11 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // ADD THIS BLOCK BELOW TO OVERRIDE THE CLOUDFLARE TARGET FOR CAPACITOR:
+  nitro: {
+    preset: "static",
+    prerender: {
+      routes: ["/"]
+    }
+  }
 });
