@@ -18,8 +18,8 @@ jobs:
       with:
         node-version: 22
 
-    # FIX: Bypass the crash because your client files are already generated in dist/client!
-    - name: Install Web Dependencies & Build Static Frontend
+    # Step 1: Force Lovable/TanStack to bundle client assets and safely allow the server pipeline to bypass
+    - name: Install Web Dependencies & Build Frontend
       run: |
         npm install
         npm run build
@@ -34,20 +34,36 @@ jobs:
     - name: Setup Android SDK Tools
       uses: android-actions/setup-android@v3
 
-    # Directs Capacitor straight to the compiled static files inside dist/client
-    - name: Setup and Sync Capacitor
+    # Step 2: Inject the generated client-side chunks directly into the APK web directory
+    - name: Configure Standalone Assets for Capacitor
       run: |
-        # Ensure the web assets directory exists safely
+        # Ensure our target asset directory exists
         mkdir -p dist/client
         
-        # Fallback check: If Lovable placed the index.html in 'dist', copy it over
-        if [ ! -f "dist/client/index.html" ] && [ -f "dist/index.html" ]; then
-          cp dist/index.html dist/client/index.html || true
-        # Ultimate fallback so the script never fails asset verification
-        elif [ ! -f "dist/client/index.html" ]; then
-          echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>BizTrack</title></head><body><div id="root"></div></body></html>' > dist/client/index.html
-        fi
+        # Pull the main generated asset javascript chunk out of the Lovable build directory
+        MAIN_JS=$(find dist/client/assets -name "index-*.js" -type f -exec basename {} \;)
+        MAIN_CSS=$(find dist/client/assets -name "styles-*.css" -type f -exec basename {} \;)
+        
+        echo "Found Lovable Client Bundle Core: $MAIN_JS"
+        
+        # Overwrite index.html with a direct client-injection script to fix the black screen
+        cat <<EOF > dist/client/index.html
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <title>BizTrack</title>
+            <link rel="stylesheet" href="./assets/$MAIN_CSS">
+        </head>
+        <body>
+            <div id="root"></div>
+            <script type="module" src="./assets/$MAIN_JS"></script>
+        </body>
+        </html>
+        EOF
 
+        # Step 3: Run Capacitor initialization with the standalone folder configurations
         npm install @capacitor/core @capacitor/cli @capacitor/android
         npx cap init "BizTrack" "com.example.biztrack" --web-dir=dist/client
         npx cap add android || true
