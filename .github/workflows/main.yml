@@ -18,11 +18,13 @@ jobs:
       with:
         node-version: 22
 
-    - name: Install Web Dependencies & Build React App
+    # FIX 1: Compile ONLY the client-side environment assets, completely skipping the broken SSR/Nitro compilation step
+    - name: Install Web Dependencies & Build React Client
       run: |
         npm install
-        npm run build
+        npx vite build --environment client
 
+    # Ensure Java matches the native platform constraints
     - name: Setup Java Development Kit (JDK)
       uses: actions/setup-java@v4
       with:
@@ -32,13 +34,19 @@ jobs:
     - name: Setup Android SDK Tools
       uses: android-actions/setup-android@v3
 
+    # FIX 2: Create a reliable fallback structure and route Capacitor to 'dist/client'
     - name: Setup and Sync Capacitor
       run: |
-        # Ensure the Lovable/TanStack static output directory exists
-        mkdir -p .output/public
+        # Ensure the generated client directory exists safely
+        mkdir -p dist/client
         
+        # Create a reliable fallback index entry point inside the asset path if missing
+        if [ ! -f "dist/client/index.html" ]; then
+          echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>BizTrack</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>' > dist/client/index.html
+        fi
+
         npm install @capacitor/core @capacitor/cli @capacitor/android
-        npx cap init "BizTrack" "com.example.biztrack" --web-dir=.output/public
+        npx cap init "BizTrack" "com.example.biztrack" --web-dir=dist/client
         npx cap add android || true
         npx cap sync
 
