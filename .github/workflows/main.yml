@@ -1,0 +1,61 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:          
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js Environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    # FIX: Explicitly forcing TanStack / Nitro to build a static client site
+    - name: Install Web Dependencies & Build Static React App
+      run: |
+        npm install
+        PREREQUISITE_PRESET=static npm run build || npm run build
+      env:
+        NITRO_PRESET: static
+
+    # DIAGNOSTIC: Let's see exactly what folder TanStack generated this time
+    - name: Verify Generated Folders
+      run: |
+        echo "Checking for output folders..."
+        ls -la .
+        if [ -d ".output" ]; then ls -la .output; fi
+        if [ -d ".output/public" ]; then echo "Found .output/public!"; fi
+
+    - name: Setup and Sync Capacitor
+      run: |
+        # Auto-detect whether it built into .output/public or fallback to dist
+        WEB_DIR=".output/public"
+        if [ ! -d ".output/public" ] && [ -d "dist" ]; then
+          WEB_DIR="dist"
+        fi
+        echo "Using web directory: $WEB_DIR"
+
+        npm install @capacitor/core @capacitor/cli @capacitor/android
+        npx cap init "BizTrack" "com.example.biztrack" --web-dir=$WEB_DIR
+        npx cap add android || true
+        npx cap sync
+
+    - name: Compile the APK File
+      run: |
+        cd android
+        chmod +x gradlew
+        ./gradlew assembleDebug
+
+    - name: Upload APK as Downloadable Asset
+      uses: actions/upload-artifact@v4
+      with:
+        name: my-react-android-app
+        path: android/app/build/outputs/apk/debug/app-debug.apk
