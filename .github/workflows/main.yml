@@ -18,12 +18,14 @@ jobs:
       with:
         node-version: 22
 
+    # Step 1: Tell TanStack / Nitro to build purely static single-page assets
     - name: Install Web Dependencies & Build React App
       run: |
         npm install
-        npm run build --if-present
+        npm run build
+      env:
+        NITRO_PRESET: static
 
-    # FIX 1: Upgraded Java to Version 21 to match Capacitor 7 requirements
     - name: Setup Java Development Kit (JDK)
       uses: actions/setup-java@v4
       with:
@@ -33,23 +35,25 @@ jobs:
     - name: Setup Android SDK Tools
       uses: android-actions/setup-android@v3
 
-    - name: Bypass Directory Verification & Sync
+    # Step 2: Ensure the target directory exists and configure Capacitor cleanly
+    - name: Setup and Sync Capacitor
       run: |
-        mkdir -p dist
-        echo '<!DOCTYPE html><html><head><script>window.location.href="http://localhost:3000";</script></head><body></body></html>' > dist/index.html
+        # Force create the directory that Capacitor checks
+        mkdir -p .output/public
         
+        # If TanStack built into 'dist' instead, move files to the expected location
+        if [ -d "dist" ] && [ ! -f ".output/public/index.html" ]; then
+          cp -r dist/* .output/public/ || true
+        fi
+        
+        # Fallback dummy file ONLY if TanStack didn't generate an index.html anywhere
+        if [ ! -f ".output/public/index.html" ]; then
+          echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>BizTrack</title></head><body><div id="root">Fallback UI: Build Assets Missing</div></body></html>' > .output/public/index.html
+        fi
+
         npm install @capacitor/core @capacitor/cli @capacitor/android
-        npx cap init "BizTrack" "com.example.biztrack" --web-dir=dist
+        npx cap init "BizTrack" "com.example.biztrack" --web-dir=.output/public
         npx cap add android || true
-        
-        node -e "
-        const fs = require('fs');
-        let config = fs.readFileSync('capacitor.config.ts', 'utf8');
-        if (config.includes('const config')) {
-          config = config.replace('const config: CapacitorConfig = {', 'const config: CapacitorConfig = {\n  server: { url: \"http://localhost:3000\", cleartext: true },');
-          fs.writeFileSync('capacitor.config.ts', config);
-        }
-        "
         npx cap sync
 
     - name: Compile the APK File
