@@ -18,13 +18,10 @@ jobs:
       with:
         node-version: 22
 
-    # Step 1: Tell TanStack / Nitro to build purely static single-page assets
     - name: Install Web Dependencies & Build React App
       run: |
         npm install
         npm run build
-      env:
-        NITRO_PRESET: static
 
     - name: Setup Java Development Kit (JDK)
       uses: actions/setup-java@v4
@@ -35,22 +32,11 @@ jobs:
     - name: Setup Android SDK Tools
       uses: android-actions/setup-android@v3
 
-    # Step 2: Ensure the target directory exists and configure Capacitor cleanly
     - name: Setup and Sync Capacitor
       run: |
-        # Force create the directory that Capacitor checks
+        # Ensure the Lovable/TanStack static output directory exists
         mkdir -p .output/public
         
-        # If TanStack built into 'dist' instead, move files to the expected location
-        if [ -d "dist" ] && [ ! -f ".output/public/index.html" ]; then
-          cp -r dist/* .output/public/ || true
-        fi
-        
-        # Fallback dummy file ONLY if TanStack didn't generate an index.html anywhere
-        if [ ! -f ".output/public/index.html" ]; then
-          echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>BizTrack</title></head><body><div id="root">Fallback UI: Build Assets Missing</div></body></html>' > .output/public/index.html
-        fi
-
         npm install @capacitor/core @capacitor/cli @capacitor/android
         npx cap init "BizTrack" "com.example.biztrack" --web-dir=.output/public
         npx cap add android || true
